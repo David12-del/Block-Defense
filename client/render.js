@@ -125,18 +125,21 @@ export function createRenderer(gameCanvas, minimapCanvas) {
 
     for (const bullet of gameState.predictedBullets.values()) {
       const point = worldToScreen(bullet.x, bullet.y);
+      const snappedX = Math.round(point.x);
+      const snappedY = Math.round(point.y);
 
       context.beginPath();
-      context.arc(point.x, point.y, 4, 0, Math.PI * 2);
+      context.arc(snappedX, snappedY, 4, 0, Math.PI * 2);
       context.fill();
     }
 
     for (const bullet of gameState.bullets.values()) {
-      const elapsed = Math.min((now - bullet.receivedAt) / 1000, 0.1);
-      const point = worldToScreen(bullet.x + bullet.vx * elapsed, bullet.y + bullet.vy * elapsed);
+      const point = worldToScreen(bullet.x, bullet.y);
+      const snappedX = Math.round(point.x);
+      const snappedY = Math.round(point.y);
 
       context.beginPath();
-      context.arc(point.x, point.y, 4, 0, Math.PI * 2);
+      context.arc(snappedX, snappedY, 4, 0, Math.PI * 2);
       context.fill();
     }
   }
