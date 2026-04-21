@@ -1,5 +1,6 @@
 import {
   MAX_INPUT_DT_MS,
+  PLAYER_COLLISION_RADIUS,
   PLAYER_SPEED,
   SPAWN_RADIUS
 } from "./constants.js";
@@ -45,7 +46,7 @@ export function getRandomSpawnPoint() {
   };
 }
 
-export function applyInputMovement(entity, input, deltaSeconds) {
+export function applyInputMovement(entity, input, deltaSeconds, obstacles = []) {
   const horizontal = Number(Boolean(input.right)) - Number(Boolean(input.left));
   const vertical = Number(Boolean(input.down)) - Number(Boolean(input.up));
 
@@ -54,9 +55,10 @@ export function applyInputMovement(entity, input, deltaSeconds) {
   }
 
   const direction = normalizeVector(horizontal, vertical);
+  const moveX = direction.x * PLAYER_SPEED * deltaSeconds;
+  const moveY = direction.y * PLAYER_SPEED * deltaSeconds;
 
-  entity.x += direction.x * PLAYER_SPEED * deltaSeconds;
-  entity.y += direction.y * PLAYER_SPEED * deltaSeconds;
+  moveCircleEntity(entity, moveX, moveY, obstacles, PLAYER_COLLISION_RADIUS);
 
   return entity;
 }
@@ -105,4 +107,97 @@ export function segmentIntersectsBox(x1, y1, x2, y2, minX, minY, maxX, maxY) {
 
 export function isFiniteVector(x, y) {
   return Number.isFinite(x) && Number.isFinite(y);
+}
+
+export function moveCircleEntity(entity, deltaX, deltaY, obstacles = [], entityRadius = PLAYER_COLLISION_RADIUS) {
+  if (deltaX !== 0) {
+    entity.x += deltaX;
+    resolveCircleCollisions(entity, obstacles, entityRadius);
+  }
+
+  if (deltaY !== 0) {
+    entity.y += deltaY;
+    resolveCircleCollisions(entity, obstacles, entityRadius);
+  }
+
+  return entity;
+}
+
+export function resolveCircleCollisions(entity, obstacles = [], entityRadius = PLAYER_COLLISION_RADIUS) {
+  for (const obstacle of obstacles) {
+    if (!obstacle?.blocksMovement) {
+      continue;
+    }
+
+    const dx = entity.x - obstacle.x;
+    const dy = entity.y - obstacle.y;
+    const minDistance = entityRadius + obstacle.radius;
+    const distanceSquared = dx * dx + dy * dy;
+
+    if (distanceSquared >= minDistance * minDistance) {
+      continue;
+    }
+
+    if (distanceSquared === 0) {
+      entity.x += minDistance;
+      continue;
+    }
+
+    const distance = Math.sqrt(distanceSquared);
+    const overlap = minDistance - distance;
+    entity.x += (dx / distance) * overlap;
+    entity.y += (dy / distance) * overlap;
+  }
+
+  return entity;
+}
+
+export function isCirclePositionFree(x, y, radius, obstacles = [], padding = 0) {
+  for (const obstacle of obstacles) {
+    const minDistance = radius + obstacle.radius + padding;
+    const dx = x - obstacle.x;
+    const dy = y - obstacle.y;
+
+    if (dx * dx + dy * dy < minDistance * minDistance) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+export function getFreeSpawnPoint(obstacles = [], radius = PLAYER_COLLISION_RADIUS, attempts = 60) {
+  for (let attempt = 0; attempt < attempts; attempt += 1) {
+    const point = getRandomSpawnPoint();
+
+    if (isCirclePositionFree(point.x, point.y, radius, obstacles, 30)) {
+      return point;
+    }
+  }
+
+  return { x: 0, y: 0 };
+}
+
+export function segmentIntersectsCircle(x1, y1, x2, y2, centerX, centerY, radius) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const lengthSquared = dx * dx + dy * dy;
+
+  if (lengthSquared === 0) {
+    const pointDx = x1 - centerX;
+    const pointDy = y1 - centerY;
+    return pointDx * pointDx + pointDy * pointDy <= radius * radius;
+  }
+
+  const projection = clamp(
+    ((centerX - x1) * dx + (centerY - y1) * dy) / lengthSquared,
+    0,
+    1
+  );
+  const closestX = x1 + dx * projection;
+  const closestY = y1 + dy * projection;
+  const distanceX = closestX - centerX;
+  const distanceY = closestY - centerY;
+
+  return distanceX * distanceX + distanceY * distanceY <= radius * radius;
 }

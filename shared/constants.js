@@ -1,5 +1,7 @@
 export const SPAWN_RADIUS = 1200;
 export const MINIMAP_RANGE = 2200;
+export const OBSTACLE_FIELD_RADIUS = 3200;
+export const PLAYER_COLLISION_RADIUS = 18;
 
 export const PLAYER_SIZE = 40;
 export const PLAYER_SPEED = 320;
@@ -17,6 +19,7 @@ export const SERVER_TICK_MS = 50;
 export const MAX_INPUT_DT_MS = 50;
 export const CLIENT_INTERPOLATION_BACK_TIME_MS = 100;
 export const CLIENT_PING_INTERVAL_MS = 1000;
+export const CLIENT_PREDICTED_BULLET_TTL_MS = 220;
 
 export const COLORS = {
   battlefield: "#4f9b43",
@@ -35,5 +38,13 @@ export const COLORS = {
   minimapFrame: "rgba(255, 255, 255, 0.22)",
   minimapLocal: "#f8fafc",
   minimapRemote: "#111111",
-  minimapView: "rgba(255, 255, 255, 0.18)"
+  minimapView: "rgba(255, 255, 255, 0.18)",
+  treeTrunk: "#5b4633",
+  treeLeaf: "#234d21",
+  treeLeafLight: "#2f672b",
+  rock: "#7f858d",
+  rockShade: "#5c6168",
+  bush: "#2d6228",
+  bushLight: "#3b7d33",
+  obstacleMinimap: "rgba(255, 255, 255, 0.28)"
 };

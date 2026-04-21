@@ -1,14 +1,18 @@
-import { PLAYER_MAX_HP, PLAYER_RESPAWN_DELAY_MS } from "../shared/constants.js";
+import {
+  PLAYER_COLLISION_RADIUS,
+  PLAYER_MAX_HP,
+  PLAYER_RESPAWN_DELAY_MS
+} from "../shared/constants.js";
 import {
   applyInputMovement,
   clampInputDelta,
-  getRandomSpawnPoint,
+  getFreeSpawnPoint,
   round2,
   sanitizeNickname
 } from "../shared/utils.js";
 
-export function createPlayer(id, nickname) {
-  const spawn = getRandomSpawnPoint();
+export function createPlayer(id, nickname, obstacles) {
+  const spawn = getFreeSpawnPoint(obstacles, PLAYER_COLLISION_RADIUS);
 
   return {
     id,
@@ -24,8 +28,8 @@ export function createPlayer(id, nickname) {
   };
 }
 
-export function addPlayer(players, id, nickname) {
-  const player = createPlayer(id, nickname);
+export function addPlayer(players, id, nickname, obstacles) {
+  const player = createPlayer(id, nickname, obstacles);
   players.set(id, player);
   return player;
 }
@@ -58,7 +62,7 @@ export function queuePlayerInput(player, payload) {
   }
 }
 
-export function processPlayerInputs(player) {
+export function processPlayerInputs(player, obstacles) {
   while (player.inputQueue.length > 0) {
     const input = player.inputQueue.shift();
 
@@ -72,7 +76,7 @@ export function processPlayerInputs(player) {
       continue;
     }
 
-    applyInputMovement(player, input, input.dt / 1000);
+    applyInputMovement(player, input, input.dt / 1000, obstacles);
   }
 }
 
@@ -83,13 +87,13 @@ export function killPlayer(player, now) {
   player.inputQueue.length = 0;
 }
 
-export function respawnPlayers(players, now) {
+export function respawnPlayers(players, now, obstacles) {
   for (const player of players.values()) {
     if (player.alive || player.respawnAt === 0 || player.respawnAt > now) {
       continue;
     }
 
-    const spawn = getRandomSpawnPoint();
+    const spawn = getFreeSpawnPoint(obstacles, PLAYER_COLLISION_RADIUS);
     player.x = spawn.x;
     player.y = spawn.y;
     player.hp = PLAYER_MAX_HP;

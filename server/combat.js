@@ -11,6 +11,7 @@ import {
   isFiniteVector,
   normalizeVector,
   round2,
+  segmentIntersectsCircle,
   segmentIntersectsBox
 } from "../shared/utils.js";
 import { killPlayer } from "./players.js";
@@ -61,6 +62,7 @@ export function trySpawnBullet(state, player, payload, now) {
   const bullet = {
     id: state.nextBulletId++,
     ownerId: player.id,
+    clientShotId: Number.isInteger(payload?.clientShotId) ? payload.clientShotId : null,
     x: originX + direction.x * (PLAYER_SIZE / 2 + BULLET_RADIUS + 2),
     y: originY + direction.y * (PLAYER_SIZE / 2 + BULLET_RADIUS + 2),
     vx: direction.x * BULLET_SPEED,
@@ -84,6 +86,33 @@ export function updateBullets(state, now, deltaSeconds) {
 
     bullet.x += bullet.vx * deltaSeconds;
     bullet.y += bullet.vy * deltaSeconds;
+
+    let blockedByObstacle = false;
+    for (const obstacle of state.obstacles) {
+      if (!obstacle.blocksBullets) {
+        continue;
+      }
+
+      if (
+        segmentIntersectsCircle(
+          previousX,
+          previousY,
+          bullet.x,
+          bullet.y,
+          obstacle.x,
+          obstacle.y,
+          obstacle.radius + BULLET_RADIUS
+        )
+      ) {
+        blockedByObstacle = true;
+        break;
+      }
+    }
+
+    if (blockedByObstacle) {
+      state.bullets.delete(bullet.id);
+      continue;
+    }
 
     let hitPlayer = null;
 
@@ -128,6 +157,8 @@ export function updateBullets(state, now, deltaSeconds) {
 export function serializeBullet(bullet) {
   return {
     id: bullet.id,
+    ownerId: bullet.ownerId,
+    clientShotId: bullet.clientShotId,
     x: round2(bullet.x),
     y: round2(bullet.y),
     vx: round2(bullet.vx),

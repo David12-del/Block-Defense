@@ -1,10 +1,19 @@
 import {
   CLIENT_PING_INTERVAL_MS,
+  CLIENT_PREDICTED_BULLET_TTL_MS,
+  BULLET_RADIUS,
+  BULLET_SPEED,
   FIRE_COOLDOWN_MS,
   MAX_INPUT_DT_MS,
-  PLAYER_MAX_HP
+  PLAYER_MAX_HP,
+  PLAYER_SIZE
 } from "../shared/constants.js";
-import { applyInputMovement, normalizeVector, sanitizeNickname } from "../shared/utils.js";
+import {
+  applyInputMovement,
+  normalizeVector,
+  sanitizeNickname,
+  segmentIntersectsCircle
+} from "../shared/utils.js";
 import { createInputController, getInputSignature, getMovementInput, hasMovement } from "./input.js";
 import { createNetwork } from "./network.js";
 import {
@@ -27,8 +36,11 @@ const gameState = {
   localPlayer: null,
   localPlayerId: null,
   remotePlayers: new Map(),
+  obstacles: [],
   bullets: new Map(),
+  predictedBullets: new Map(),
   nextInputSeq: 1,
+  nextShotId: 1,
   lastInputSignature: "0000",
   lastShotAt: -FIRE_COOLDOWN_MS,
   pingMs: 0,
@@ -67,6 +79,7 @@ function frame(now) {
     : gameState.fps * 0.9 + (1000 / Math.max(deltaMs, 1)) * 0.1;
 
   sendMovementInput(deltaMs);
+  updatePredictedBullets(deltaMs / 1000, now);
   renderer.render(gameState, now);
   updateUi(now);
 
@@ -128,7 +141,10 @@ function handleInit(payload) {
   gameState.localPlayer = createLocalPlayer(payload.snapshot.you);
   gameState.remotePlayers.clear();
   gameState.bullets.clear();
+  gameState.predictedBullets.clear();
+  gameState.obstacles = payload.snapshot.world?.obstacles ?? [];
   gameState.nextInputSeq = payload.snapshot.you.lastProcessedInputSeq + 1;
+  gameState.nextShotId = 1;
   gameState.lastInputSignature = "0000";
   gameState.lastShotAt = -FIRE_COOLDOWN_MS;
   gameState.nickname = payload.nick;
@@ -151,7 +167,7 @@ function handleSnapshot(snapshot) {
 function applySnapshot(snapshot) {
   const receivedAt = performance.now();
 
-  reconcileLocalPlayer(gameState.localPlayer, snapshot.you);
+  reconcileLocalPlayer(gameState.localPlayer, snapshot.you, gameState.obstacles);
 
   const seenRemoteIds = new Set();
   for (const player of snapshot.players) {
@@ -178,6 +194,10 @@ function applySnapshot(snapshot) {
 
   const serverBullets = new Map();
   for (const bullet of snapshot.bullets) {
+    if (bullet.ownerId === gameState.localPlayerId && Number.isInteger(bullet.clientShotId)) {
+      gameState.predictedBullets.delete(bullet.clientShotId);
+    }
+
     serverBullets.set(bullet.id, {
       ...bullet,
       receivedAt
@@ -215,7 +235,7 @@ function sendMovementInput(deltaMs) {
   network.sendInput(packet);
 
   recordPendingInput(gameState.localPlayer, packet);
-  applyInputMovement(gameState.localPlayer, packet, packet.dt / 1000);
+  applyInputMovement(gameState.localPlayer, packet, packet.dt / 1000, gameState.obstacles);
 }
 
 function handleShoot({ screenX, screenY }) {
@@ -235,8 +255,20 @@ function handleShoot({ screenX, screenY }) {
   }
 
   gameState.lastShotAt = now;
+  const clientShotId = gameState.nextShotId++;
+  const spawnDistance = PLAYER_SIZE / 2 + BULLET_RADIUS + 2;
+
+  gameState.predictedBullets.set(clientShotId, {
+    id: clientShotId,
+    x: gameState.localPlayer.x + direction.x * spawnDistance,
+    y: gameState.localPlayer.y + direction.y * spawnDistance,
+    vx: direction.x * BULLET_SPEED,
+    vy: direction.y * BULLET_SPEED,
+    expiresAt: now + CLIENT_PREDICTED_BULLET_TTL_MS
+  });
 
   network.sendShoot({
+    clientShotId,
     originX: gameState.localPlayer.x,
     originY: gameState.localPlayer.y,
     targetX: target.x,
@@ -250,6 +282,37 @@ function handlePong({ clientTime } = {}) {
   }
 
   gameState.pingMs = Math.max(0, Math.round(performance.now() - clientTime));
+}
+
+function updatePredictedBullets(deltaSeconds, now) {
+  for (const [shotId, bullet] of gameState.predictedBullets.entries()) {
+    const previousX = bullet.x;
+    const previousY = bullet.y;
+    bullet.x += bullet.vx * deltaSeconds;
+    bullet.y += bullet.vy * deltaSeconds;
+
+    let blocked = false;
+    for (const obstacle of gameState.obstacles) {
+      if (
+        segmentIntersectsCircle(
+          previousX,
+          previousY,
+          bullet.x,
+          bullet.y,
+          obstacle.x,
+          obstacle.y,
+          obstacle.radius + BULLET_RADIUS
+        )
+      ) {
+        blocked = true;
+        break;
+      }
+    }
+
+    if (blocked || now >= bullet.expiresAt) {
+      gameState.predictedBullets.delete(shotId);
+    }
+  }
 }
 
 function updateUi(now) {

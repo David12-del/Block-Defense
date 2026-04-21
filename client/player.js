@@ -13,7 +13,7 @@ export function createLocalPlayer(snapshot) {
   };
 }
 
-export function reconcileLocalPlayer(localPlayer, authoritativeState) {
+export function reconcileLocalPlayer(localPlayer, authoritativeState, obstacles = []) {
   if (!localPlayer || !authoritativeState) {
     return;
   }
@@ -30,7 +30,7 @@ export function reconcileLocalPlayer(localPlayer, authoritativeState) {
   );
 
   for (const input of localPlayer.pendingInputs) {
-    applyInputMovement(localPlayer, input, input.dt / 1000);
+    applyInputMovement(localPlayer, input, input.dt / 1000, obstacles);
   }
 }
 

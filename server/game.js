@@ -9,17 +9,19 @@ import {
   serializeOwnPlayer,
   serializePlayer
 } from "./players.js";
+import { createWorldObstacles, serializeObstacle } from "./world.js";
 
 export function createGameState() {
   return {
     players: new Map(),
+    obstacles: createWorldObstacles(),
     bullets: new Map(),
     nextBulletId: 1
   };
 }
 
 export function addPlayerToGame(state, id, nickname) {
-  return addPlayer(state.players, id, nickname);
+  return addPlayer(state.players, id, nickname, state.obstacles);
 }
 
 export function removePlayerFromGame(state, id) {
@@ -45,7 +47,7 @@ export function handlePlayerShoot(state, id, payload, now = Date.now()) {
 
   // Pull the latest queued movement before the shot so bullets start from the
   // freshest authoritative position instead of an older tick position.
-  processPlayerInputs(player);
+  processPlayerInputs(player, state.obstacles);
   return trySpawnBullet(state, player, payload, now);
 }
 
@@ -57,6 +59,9 @@ export function createSnapshotForPlayer(state, playerId, serverTime = Date.now()
 
   return {
     serverTime,
+    world: {
+      obstacles: state.obstacles.map(serializeObstacle)
+    },
     players: [...state.players.values()].map(serializePlayer),
     bullets: [...state.bullets.values()].map(serializeBullet),
     you: serializeOwnPlayer(player)
@@ -72,11 +77,11 @@ export function startGameLoop(io, state) {
     lastTickAt = now;
 
     for (const player of state.players.values()) {
-      processPlayerInputs(player);
+      processPlayerInputs(player, state.obstacles);
     }
 
     updateBullets(state, now, deltaSeconds);
-    respawnPlayers(state.players, now);
+    respawnPlayers(state.players, now, state.obstacles);
 
     const playersPayload = [...state.players.values()].map(serializePlayer);
     const bulletsPayload = [...state.bullets.values()].map(serializeBullet);

@@ -56,6 +56,7 @@ export function createRenderer(gameCanvas, minimapCanvas) {
     context.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
 
     drawTerrain();
+    drawObstacles(gameState.obstacles);
     drawBullets(gameState, now);
     drawPlayers(gameState, now);
     drawViewportFrame();
@@ -121,6 +122,14 @@ export function createRenderer(gameCanvas, minimapCanvas) {
 
   function drawBullets(gameState, now) {
     context.fillStyle = COLORS.bullet;
+
+    for (const bullet of gameState.predictedBullets.values()) {
+      const point = worldToScreen(bullet.x, bullet.y);
+
+      context.beginPath();
+      context.arc(point.x, point.y, 4, 0, Math.PI * 2);
+      context.fill();
+    }
 
     for (const bullet of gameState.bullets.values()) {
       const elapsed = Math.min((now - bullet.receivedAt) / 1000, 0.1);
@@ -208,6 +217,20 @@ export function createRenderer(gameCanvas, minimapCanvas) {
     const worldScaleX = radiusX / MINIMAP_RANGE;
     const worldScaleY = radiusY / MINIMAP_RANGE;
 
+    minimapContext.fillStyle = COLORS.obstacleMinimap;
+    for (const obstacle of gameState.obstacles) {
+      const dx = obstacle.x - gameState.localPlayer.x;
+      const dy = obstacle.y - gameState.localPlayer.y;
+      if (Math.abs(dx) > MINIMAP_RANGE || Math.abs(dy) > MINIMAP_RANGE) {
+        continue;
+      }
+
+      const x = centerX + dx * worldScaleX;
+      const y = centerY + dy * worldScaleY;
+      const size = Math.max(2, obstacle.radius * 0.12);
+      minimapContext.fillRect(x - size / 2, y - size / 2, size, size);
+    }
+
     minimapContext.strokeStyle = COLORS.minimapView;
     minimapContext.strokeRect(centerX - 24, centerY - 14, 48, 28);
 
@@ -253,6 +276,76 @@ export function createRenderer(gameCanvas, minimapCanvas) {
       minimapContext.lineTo(minimapCanvas.width, y);
       minimapContext.stroke();
     }
+  }
+
+  function drawObstacles(obstacles) {
+    for (const obstacle of obstacles) {
+      const point = worldToScreen(obstacle.x, obstacle.y);
+
+      if (
+        point.x < -80 ||
+        point.x > gameCanvas.width + 80 ||
+        point.y < -80 ||
+        point.y > gameCanvas.height + 80
+      ) {
+        continue;
+      }
+
+      if (obstacle.type === "tree") {
+        drawTree(point.x, point.y, obstacle.radius);
+        continue;
+      }
+
+      if (obstacle.type === "rock") {
+        drawRock(point.x, point.y, obstacle.radius);
+        continue;
+      }
+
+      drawBush(point.x, point.y, obstacle.radius);
+    }
+  }
+
+  function drawTree(x, y, radius) {
+    context.fillStyle = COLORS.treeTrunk;
+    context.fillRect(x - radius * 0.2, y - radius * 0.15, radius * 0.4, radius * 0.95);
+
+    context.fillStyle = COLORS.treeLeaf;
+    context.beginPath();
+    context.arc(x, y - radius * 0.35, radius, 0, Math.PI * 2);
+    context.fill();
+
+    context.fillStyle = COLORS.treeLeafLight;
+    context.beginPath();
+    context.arc(x - radius * 0.22, y - radius * 0.55, radius * 0.5, 0, Math.PI * 2);
+    context.arc(x + radius * 0.32, y - radius * 0.46, radius * 0.42, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  function drawRock(x, y, radius) {
+    context.fillStyle = COLORS.rockShade;
+    context.beginPath();
+    context.ellipse(x + radius * 0.08, y + radius * 0.16, radius * 0.96, radius * 0.72, 0, 0, Math.PI * 2);
+    context.fill();
+
+    context.fillStyle = COLORS.rock;
+    context.beginPath();
+    context.ellipse(x, y, radius, radius * 0.7, 0, 0, Math.PI * 2);
+    context.fill();
+  }
+
+  function drawBush(x, y, radius) {
+    context.fillStyle = COLORS.bush;
+    context.beginPath();
+    context.arc(x, y, radius * 0.82, 0, Math.PI * 2);
+    context.arc(x - radius * 0.48, y + radius * 0.08, radius * 0.46, 0, Math.PI * 2);
+    context.arc(x + radius * 0.42, y + radius * 0.12, radius * 0.42, 0, Math.PI * 2);
+    context.fill();
+
+    context.fillStyle = COLORS.bushLight;
+    context.beginPath();
+    context.arc(x - radius * 0.18, y - radius * 0.2, radius * 0.34, 0, Math.PI * 2);
+    context.arc(x + radius * 0.3, y - radius * 0.12, radius * 0.24, 0, Math.PI * 2);
+    context.fill();
   }
 
   return {
