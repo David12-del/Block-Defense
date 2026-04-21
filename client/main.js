@@ -1,8 +1,10 @@
 import {
+  CLIENT_PING_INTERVAL_MS,
   FIRE_COOLDOWN_MS,
-  MAX_INPUT_DT_MS
+  MAX_INPUT_DT_MS,
+  PLAYER_MAX_HP
 } from "../shared/constants.js";
-import { applyInputMovement, normalizeVector } from "../shared/utils.js";
+import { applyInputMovement, normalizeVector, sanitizeNickname } from "../shared/utils.js";
 import { createInputController, getInputSignature, getMovementInput, hasMovement } from "./input.js";
 import { createNetwork } from "./network.js";
 import {
@@ -14,34 +16,44 @@ import {
 } from "./player.js";
 import { createRenderer } from "./render.js";
 
-const canvas = document.getElementById("game");
-const nickname = getInitialNickname();
+const elements = getElements();
+const renderer = createRenderer(elements.gameCanvas, elements.minimapCanvas);
 
-const renderer = createRenderer(canvas);
 const gameState = {
   connected: false,
+  joining: false,
+  joined: false,
+  nickname: elements.nicknameInput.value,
   localPlayer: null,
   localPlayerId: null,
   remotePlayers: new Map(),
   bullets: new Map(),
   nextInputSeq: 1,
   lastInputSignature: "0000",
-  lastShotAt: -FIRE_COOLDOWN_MS
+  lastShotAt: -FIRE_COOLDOWN_MS,
+  pingMs: 0,
+  fps: 0,
+  devVisible: false
 };
 
 const network = createNetwork({
-  nickname,
   onInit: handleInit,
   onSnapshot: handleSnapshot,
-  onConnectionChange: (connected) => {
-    gameState.connected = connected;
-  }
+  onConnectionChange: handleConnectionChange,
+  onPong: handlePong
 });
 
-const input = createInputController(canvas, handleShoot);
+const input = createInputController(elements.gameCanvas, handleShoot);
 
+bindUiEvents();
 renderer.resize();
-window.addEventListener("resize", () => renderer.resize());
+updateUi(performance.now());
+
+window.setInterval(() => {
+  if (gameState.connected) {
+    network.requestPing(performance.now());
+  }
+}, CLIENT_PING_INTERVAL_MS);
 
 let lastFrameAt = performance.now();
 requestAnimationFrame(frame);
@@ -50,49 +62,59 @@ function frame(now) {
   const deltaMs = Math.min(now - lastFrameAt, MAX_INPUT_DT_MS);
   lastFrameAt = now;
 
+  gameState.fps = gameState.fps === 0
+    ? 1000 / Math.max(deltaMs, 1)
+    : gameState.fps * 0.9 + (1000 / Math.max(deltaMs, 1)) * 0.1;
+
   sendMovementInput(deltaMs);
   renderer.render(gameState, now);
+  updateUi(now);
 
   requestAnimationFrame(frame);
 }
 
-function sendMovementInput(deltaMs) {
-  if (!gameState.connected || !gameState.localPlayer) {
-    return;
-  }
+function bindUiEvents() {
+  elements.joinForm.addEventListener("submit", (event) => {
+    event.preventDefault();
 
-  const movement = getMovementInput(input);
-  const signature = getInputSignature(movement);
-  const moving = hasMovement(movement);
+    const nickname = sanitizeNickname(elements.nicknameInput.value);
+    elements.nicknameInput.value = nickname;
+    elements.menuStatus.textContent = "Connecting to match...";
+    elements.joinButton.disabled = true;
 
-  if (!gameState.localPlayer.alive) {
-    gameState.lastInputSignature = signature;
-    return;
-  }
+    gameState.joining = true;
+    gameState.nickname = nickname;
+    localStorage.setItem("block-defense:nickname", nickname);
 
-  if (!moving && signature === gameState.lastInputSignature) {
-    return;
-  }
+    network.join(nickname);
+    updateUi(performance.now());
+  });
 
-  const packet = {
-    seq: gameState.nextInputSeq++,
-    dt: Math.round(deltaMs),
-    ...movement
-  };
+  window.addEventListener("resize", () => renderer.resize());
+  window.addEventListener("keydown", (event) => {
+    if (event.code !== "NumLock" || event.repeat) {
+      return;
+    }
 
-  gameState.lastInputSignature = signature;
-  network.sendInput(packet);
-
-  applyLocalPrediction(packet);
+    gameState.devVisible = !gameState.devVisible;
+    elements.devPanel.classList.toggle("is-hidden", !gameState.devVisible);
+  });
 }
 
-function applyLocalPrediction(packet) {
-  if (!gameState.localPlayer) {
-    return;
-  }
+function handleConnectionChange(connected) {
+  gameState.connected = connected;
 
-  recordPendingInput(gameState.localPlayer, packet);
-  applyInputMovement(gameState.localPlayer, packet, packet.dt / 1000);
+  if (!connected) {
+    elements.joinButton.disabled = false;
+
+    if (!gameState.joined) {
+      elements.menuStatus.textContent = gameState.joining
+        ? "Waiting for server..."
+        : "Enter nickname to join.";
+    }
+  } else if (!gameState.joined && gameState.joining) {
+    elements.menuStatus.textContent = "Authorizing player...";
+  }
 }
 
 function handleInit(payload) {
@@ -100,6 +122,8 @@ function handleInit(payload) {
     return;
   }
 
+  gameState.joined = true;
+  gameState.joining = false;
   gameState.localPlayerId = payload.id;
   gameState.localPlayer = createLocalPlayer(payload.snapshot.you);
   gameState.remotePlayers.clear();
@@ -107,8 +131,13 @@ function handleInit(payload) {
   gameState.nextInputSeq = payload.snapshot.you.lastProcessedInputSeq + 1;
   gameState.lastInputSignature = "0000";
   gameState.lastShotAt = -FIRE_COOLDOWN_MS;
+  gameState.nickname = payload.nick;
 
   applySnapshot(payload.snapshot);
+
+  elements.menuOverlay.classList.add("is-hidden");
+  elements.joinButton.disabled = false;
+  elements.menuStatus.textContent = "Enter nickname to join.";
 }
 
 function handleSnapshot(snapshot) {
@@ -141,7 +170,7 @@ function applySnapshot(snapshot) {
     pushRemoteSnapshot(existing, player, receivedAt);
   }
 
-  for (const remoteId of gameState.remotePlayers.keys()) {
+  for (const remoteId of [...gameState.remotePlayers.keys()]) {
     if (!seenRemoteIds.has(remoteId)) {
       gameState.remotePlayers.delete(remoteId);
     }
@@ -156,6 +185,37 @@ function applySnapshot(snapshot) {
   }
 
   gameState.bullets = serverBullets;
+}
+
+function sendMovementInput(deltaMs) {
+  if (!gameState.connected || !gameState.localPlayer) {
+    return;
+  }
+
+  const movement = getMovementInput(input);
+  const signature = getInputSignature(movement);
+  const moving = hasMovement(movement);
+
+  if (!gameState.localPlayer.alive) {
+    gameState.lastInputSignature = signature;
+    return;
+  }
+
+  if (!moving && signature === gameState.lastInputSignature) {
+    return;
+  }
+
+  const packet = {
+    seq: gameState.nextInputSeq++,
+    dt: Math.round(deltaMs),
+    ...movement
+  };
+
+  gameState.lastInputSignature = signature;
+  network.sendInput(packet);
+
+  recordPendingInput(gameState.localPlayer, packet);
+  applyInputMovement(gameState.localPlayer, packet, packet.dt / 1000);
 }
 
 function handleShoot({ screenX, screenY }) {
@@ -177,14 +237,88 @@ function handleShoot({ screenX, screenY }) {
   gameState.lastShotAt = now;
 
   network.sendShoot({
+    originX: gameState.localPlayer.x,
+    originY: gameState.localPlayer.y,
     targetX: target.x,
     targetY: target.y
   });
 }
 
-function getInitialNickname() {
-  const fallback = `Player-${Math.floor(Math.random() * 9000 + 1000)}`;
-  const promptValue = window.prompt("Nickname", fallback);
-  const nickname = (promptValue ?? fallback).trim();
-  return nickname || fallback;
+function handlePong({ clientTime } = {}) {
+  if (!Number.isFinite(clientTime)) {
+    return;
+  }
+
+  gameState.pingMs = Math.max(0, Math.round(performance.now() - clientTime));
+}
+
+function updateUi(now) {
+  const localPlayer = gameState.localPlayer;
+  const hp = localPlayer?.hp ?? 0;
+  const playersOnline = gameState.remotePlayers.size + (localPlayer ? 1 : 0);
+  const cooldownLeft = Math.max(0, Math.ceil(gameState.lastShotAt + FIRE_COOLDOWN_MS - now));
+  const hpRatio = Math.max(0, Math.min(1, hp / PLAYER_MAX_HP));
+
+  elements.hudNick.textContent = localPlayer?.nick ?? gameState.nickname ?? "Offline";
+  elements.hudHp.textContent = `${hp} / ${PLAYER_MAX_HP}`;
+  elements.hudHpFill.style.width = `${hpRatio * 100}%`;
+  elements.hudPlayers.textContent = String(playersOnline);
+  elements.hudSocket.textContent = gameState.connected ? "ONLINE" : "OFFLINE";
+  elements.hudWeapon.textContent = cooldownLeft > 0 ? `${cooldownLeft} ms` : "READY";
+  elements.hudWeaponFill.style.width = `${(1 - cooldownLeft / FIRE_COOLDOWN_MS) * 100}%`;
+  elements.hudInlineNick.textContent = localPlayer?.nick ?? "Observer";
+  elements.hudInlineHp.textContent = `${hp}`;
+  elements.hudInlineMax.textContent = `${PLAYER_MAX_HP}`;
+  elements.hudCoords.textContent = localPlayer
+    ? `X ${Math.round(localPlayer.x)}  Y ${Math.round(localPlayer.y)}`
+    : "X 0  Y 0";
+  elements.hudRespawn.textContent = localPlayer && !localPlayer.alive
+    ? `Respawn in ${Math.max(0, Math.ceil((localPlayer.respawnAt - Date.now()) / 1000))}s`
+    : "Alive";
+
+  elements.debugFps.textContent = `${Math.round(gameState.fps)}`;
+  elements.debugPing.textContent = `${gameState.pingMs}`;
+  elements.debugPlayers.textContent = `${playersOnline}`;
+  elements.debugBullets.textContent = `${gameState.bullets.size}`;
+  elements.debugPos.textContent = localPlayer
+    ? `${Math.round(localPlayer.x)}, ${Math.round(localPlayer.y)}`
+    : "0, 0";
+  elements.debugPending.textContent = `${localPlayer?.pendingInputs.length ?? 0}`;
+  elements.debugState.textContent = gameState.connected ? "connected" : "offline";
+}
+
+function getElements() {
+  const storedNickname = localStorage.getItem("block-defense:nickname") || "";
+
+  return {
+    gameCanvas: document.getElementById("game"),
+    minimapCanvas: document.getElementById("minimap"),
+    menuOverlay: document.getElementById("menu-overlay"),
+    joinForm: document.getElementById("join-form"),
+    nicknameInput: Object.assign(document.getElementById("nickname"), {
+      value: storedNickname
+    }),
+    joinButton: document.getElementById("join-button"),
+    menuStatus: document.getElementById("menu-status"),
+    hudNick: document.getElementById("hud-nick"),
+    hudHp: document.getElementById("hud-hp"),
+    hudHpFill: document.getElementById("hud-hp-fill"),
+    hudPlayers: document.getElementById("hud-players"),
+    hudSocket: document.getElementById("hud-socket"),
+    hudWeapon: document.getElementById("hud-weapon"),
+    hudWeaponFill: document.getElementById("hud-weapon-fill"),
+    hudRespawn: document.getElementById("hud-respawn"),
+    hudCoords: document.getElementById("hud-coords"),
+    hudInlineNick: document.getElementById("hud-inline-nick"),
+    hudInlineHp: document.getElementById("hud-inline-hp"),
+    hudInlineMax: document.getElementById("hud-inline-max"),
+    devPanel: document.getElementById("dev-panel"),
+    debugFps: document.getElementById("debug-fps"),
+    debugPing: document.getElementById("debug-ping"),
+    debugPlayers: document.getElementById("debug-players"),
+    debugBullets: document.getElementById("debug-bullets"),
+    debugPos: document.getElementById("debug-pos"),
+    debugPending: document.getElementById("debug-pending"),
+    debugState: document.getElementById("debug-state")
+  };
 }

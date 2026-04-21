@@ -1,7 +1,5 @@
-// ==================== GAME CONSTANTS ====================
-
-export const WORLD_WIDTH = 2000;
-export const WORLD_HEIGHT = 1200;
+export const SPAWN_RADIUS = 1200;
+export const MINIMAP_RANGE = 2200;
 
 export const PLAYER_SIZE = 40;
 export const PLAYER_SPEED = 320;
@@ -16,40 +14,26 @@ export const FIRE_COOLDOWN_MS = 220;
 export const MAX_ACTIVE_BULLETS = 120;
 
 export const SERVER_TICK_MS = 50;
-export const SNAPSHOT_RATE = 1000 / SERVER_TICK_MS;
 export const MAX_INPUT_DT_MS = 50;
-
 export const CLIENT_INTERPOLATION_BACK_TIME_MS = 100;
+export const CLIENT_PING_INTERVAL_MS = 1000;
 
 export const COLORS = {
-    backgroundTop: "#0f172a",
-    backgroundBottom: "#1f2937",
-    grid: "rgba(148, 163, 184, 0.14)",
-    localPlayer: "#f97316",
-    remotePlayer: "#22d3ee",
-    deadPlayer: "#64748b",
-    bullet: "#f8fafc",
-    hudBg: "rgba(12, 12, 12, 0.9)",
-    hudPanel: "rgba(30, 30, 30, 0.96)",
-    hudBorder: "rgba(200, 200, 200, 0.26)",
-    hudAccent: "#f3f4f6",
-    hudMuted: "#9ca3af",
-    hudTrack: "#252525",
-    hudFill: "#e5e7eb",
-    hpBar: "#22c55e",
-    hpBarMissing: "#ef4444",
-    arenaBorder: "rgba(248, 250, 252, 0.2)"
-};
-
-export const EVENTS = {
-    CONNECT: 'connect',
-    DISCONNECT: 'disconnect',
-    INPUT: 'input',
-    SHOOT: 'shoot',
-    GAME_STATE: 'gameState',
-    PLAYER_HIT: 'playerHit',
-    PLAYER_DEATH: 'playerDeath',
-    PLAYER_SPAWN: 'playerSpawn',
-    BULLET_FIRED: 'bulletFired',
-    BULLET_HIT: 'bulletHit'
+  battlefield: "#4f9b43",
+  battlefieldShade: "#3b7d33",
+  battlefieldGrid: "rgba(10, 33, 10, 0.16)",
+  localPlayer: "#f8fafc",
+  remotePlayer: "#0f172a",
+  deadPlayer: "#6b7280",
+  bullet: "#f8fafc",
+  playerName: "#f8fafc",
+  hpBar: "#f8fafc",
+  hpBarMissing: "rgba(15, 23, 42, 0.55)",
+  viewportFrame: "#f3f4f6",
+  minimapBg: "#111827",
+  minimapGrid: "rgba(255, 255, 255, 0.08)",
+  minimapFrame: "rgba(255, 255, 255, 0.22)",
+  minimapLocal: "#f8fafc",
+  minimapRemote: "#111111",
+  minimapView: "rgba(255, 255, 255, 0.18)"
 };

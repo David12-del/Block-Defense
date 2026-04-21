@@ -75,6 +75,13 @@ io.on("connection", (socket) => {
     handlePlayerShoot(state, socket.id, payload);
   });
 
+  socket.on("ping-check", ({ clientTime } = {}) => {
+    socket.emit("pong-check", {
+      clientTime: Number(clientTime) || 0,
+      serverTime: Date.now()
+    });
+  });
+
   socket.on("disconnect", () => {
     if (!joined) {
       return;

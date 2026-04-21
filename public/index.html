@@ -7,16 +7,110 @@
     <link rel="stylesheet" href="/public/styles.css">
   </head>
   <body>
-    <canvas id="game"></canvas>
-    <div class="ui-frame">
-      <div class="ui-header">
-        <div class="ui-brand">BLOCK DEFENSE // ONLINE</div>
-        <div class="ui-tag">BROWSER COMBAT INTERFACE</div>
-      </div>
-      <div class="corner-mark">BUILD 2015.GRAY</div>
+    <div class="shell">
+      <aside class="panel">
+        <section class="card profile-card">
+          <div class="card-label">Pilot</div>
+          <div id="hud-nick" class="card-value">Offline</div>
+          <div class="meta-row">
+            <span>HP</span>
+            <span id="hud-hp">0 / 100</span>
+          </div>
+          <div class="meter">
+            <div id="hud-hp-fill" class="meter-fill"></div>
+          </div>
+          <div class="meta-row">
+            <span>Players</span>
+            <span id="hud-players">0</span>
+          </div>
+          <div class="meta-row">
+            <span>Socket</span>
+            <span id="hud-socket">OFFLINE</span>
+          </div>
+        </section>
+
+        <section class="card">
+          <div class="card-label">Combat</div>
+          <div class="meta-row">
+            <span>Weapon</span>
+            <span id="hud-weapon">READY</span>
+          </div>
+          <div class="meter meter-thin">
+            <div id="hud-weapon-fill" class="meter-fill"></div>
+          </div>
+          <div class="meta-row">
+            <span>Status</span>
+            <span id="hud-respawn">Alive</span>
+          </div>
+          <div class="meta-row">
+            <span>Coords</span>
+            <span id="hud-coords">X 0 Y 0</span>
+          </div>
+        </section>
+      </aside>
+
+      <main class="stage">
+        <div class="game-shell">
+          <div class="game-toolbar">
+            <div>ARENA WINDOW</div>
+            <div>NUM LOCK // DEV PANEL</div>
+          </div>
+          <div class="game-frame">
+            <canvas id="game"></canvas>
+          </div>
+          <div class="game-footer">
+            <div class="footer-block">
+              <span class="footer-label">Nick</span>
+              <span id="hud-inline-nick" class="footer-value">Observer</span>
+            </div>
+            <div class="footer-block">
+              <span class="footer-label">HP</span>
+              <span class="footer-value"><span id="hud-inline-hp">0</span> / <span id="hud-inline-max">100</span></span>
+            </div>
+          </div>
+        </div>
+
+        <section id="dev-panel" class="card dev-panel is-hidden">
+          <div class="card-label">Developer</div>
+          <div class="dev-grid">
+            <div class="meta-row"><span>FPS</span><span id="debug-fps">0</span></div>
+            <div class="meta-row"><span>Ping</span><span id="debug-ping">0</span></div>
+            <div class="meta-row"><span>Players</span><span id="debug-players">0</span></div>
+            <div class="meta-row"><span>Bullets</span><span id="debug-bullets">0</span></div>
+            <div class="meta-row"><span>Position</span><span id="debug-pos">0, 0</span></div>
+            <div class="meta-row"><span>Pending</span><span id="debug-pending">0</span></div>
+            <div class="meta-row"><span>Net</span><span id="debug-state">offline</span></div>
+          </div>
+        </section>
+      </main>
+
+      <aside class="panel panel-right">
+        <section class="card minimap-card">
+          <div class="card-label">Mini Map</div>
+          <canvas id="minimap"></canvas>
+        </section>
+
+        <section class="card tips-card">
+          <div class="card-label">Controls</div>
+          <div class="tip-line">WASD // move</div>
+          <div class="tip-line">LMB // fire</div>
+          <div class="tip-line">Num Lock // debug</div>
+        </section>
+      </aside>
+    </div>
+
+    <div id="menu-overlay" class="menu-overlay">
+      <form id="join-form" class="menu-card">
+        <div class="menu-title">BLOCK DEFENSE</div>
+        <div class="menu-subtitle">Enter callsign and deploy into the field.</div>
+        <label class="menu-label" for="nickname">Nickname</label>
+        <input id="nickname" class="menu-input" type="text" maxlength="16" autocomplete="nickname" placeholder="Player-1001">
+        <button id="join-button" class="menu-button" type="submit">Enter Match</button>
+        <div id="menu-status" class="menu-status">Enter nickname to join.</div>
+      </form>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script type="module" src="/client/main.js"></script>
   </body>
-  </html>
+</html>

@@ -1,11 +1,16 @@
-export function createNetwork({ nickname, onInit, onSnapshot, onConnectionChange }) {
+export function createNetwork({ onInit, onSnapshot, onConnectionChange, onPong }) {
   const socket = io({
     transports: ["websocket"]
   });
 
+  let pendingNickname = "";
+
   socket.on("connect", () => {
     onConnectionChange(true);
-    socket.emit("join", { nick: nickname });
+
+    if (pendingNickname) {
+      socket.emit("join", { nick: pendingNickname });
+    }
   });
 
   socket.on("init", (payload) => {
@@ -16,16 +21,30 @@ export function createNetwork({ nickname, onInit, onSnapshot, onConnectionChange
     onSnapshot(snapshot);
   });
 
+  socket.on("pong-check", (payload) => {
+    onPong(payload);
+  });
+
   socket.on("disconnect", () => {
     onConnectionChange(false);
   });
 
   return {
+    join(nickname) {
+      pendingNickname = nickname;
+
+      if (socket.connected) {
+        socket.emit("join", { nick: nickname });
+      }
+    },
     sendInput(input) {
       socket.emit("input", input);
     },
     sendShoot(payload) {
       socket.emit("shoot", payload);
+    },
+    requestPing(clientTime) {
+      socket.emit("ping-check", { clientTime });
     }
   };
 }

@@ -5,9 +5,7 @@ import {
   BULLET_SPEED,
   FIRE_COOLDOWN_MS,
   MAX_ACTIVE_BULLETS,
-  PLAYER_SIZE,
-  WORLD_HEIGHT,
-  WORLD_WIDTH
+  PLAYER_SIZE
 } from "../shared/constants.js";
 import {
   isFiniteVector,
@@ -33,7 +31,27 @@ export function trySpawnBullet(state, player, payload, now) {
     return null;
   }
 
-  const direction = normalizeVector(targetX - player.x, targetY - player.y);
+  const clientOriginX = Number(payload?.originX);
+  const clientOriginY = Number(payload?.originY);
+  let originX = player.x;
+  let originY = player.y;
+
+  if (isFiniteVector(clientOriginX, clientOriginY)) {
+    const dx = clientOriginX - player.x;
+    const dy = clientOriginY - player.y;
+    const distance = Math.hypot(dx, dy);
+    const maxOriginDrift = PLAYER_SIZE + 140;
+
+    if (distance <= maxOriginDrift) {
+      originX = clientOriginX;
+      originY = clientOriginY;
+    } else if (distance > 0) {
+      originX = player.x + (dx / distance) * maxOriginDrift;
+      originY = player.y + (dy / distance) * maxOriginDrift;
+    }
+  }
+
+  const direction = normalizeVector(targetX - originX, targetY - originY);
   if (direction.x === 0 && direction.y === 0) {
     return null;
   }
@@ -43,8 +61,8 @@ export function trySpawnBullet(state, player, payload, now) {
   const bullet = {
     id: state.nextBulletId++,
     ownerId: player.id,
-    x: player.x,
-    y: player.y,
+    x: originX + direction.x * (PLAYER_SIZE / 2 + BULLET_RADIUS + 2),
+    y: originY + direction.y * (PLAYER_SIZE / 2 + BULLET_RADIUS + 2),
     vx: direction.x * BULLET_SPEED,
     vy: direction.y * BULLET_SPEED,
     bornAt: now
@@ -66,11 +84,6 @@ export function updateBullets(state, now, deltaSeconds) {
 
     bullet.x += bullet.vx * deltaSeconds;
     bullet.y += bullet.vy * deltaSeconds;
-
-    if (bullet.x < 0 || bullet.x > WORLD_WIDTH || bullet.y < 0 || bullet.y > WORLD_HEIGHT) {
-      state.bullets.delete(bullet.id);
-      continue;
-    }
 
     let hitPlayer = null;
 

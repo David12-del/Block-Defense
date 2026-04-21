@@ -28,10 +28,18 @@ export function createInputController(canvas, onShoot) {
   }
 
   function handleKeyDown(event) {
+    if (shouldIgnoreKeyboardEvent(event)) {
+      return;
+    }
+
     updateKey(event.code, true);
   }
 
   function handleKeyUp(event) {
+    if (shouldIgnoreKeyboardEvent(event)) {
+      return;
+    }
+
     updateKey(event.code, false);
   }
 
@@ -73,6 +81,11 @@ export function createInputController(canvas, onShoot) {
       canvas.removeEventListener("mousedown", handleMouseDown);
     }
   };
+}
+
+function shouldIgnoreKeyboardEvent(event) {
+  const tagName = event.target?.tagName;
+  return tagName === "INPUT" || tagName === "TEXTAREA";
 }
 
 export function getMovementInput(inputController) {

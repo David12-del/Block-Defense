@@ -1,27 +1,21 @@
 import {
   CLIENT_INTERPOLATION_BACK_TIME_MS,
   COLORS,
-  FIRE_COOLDOWN_MS,
+  MINIMAP_RANGE,
   PLAYER_MAX_HP,
-  PLAYER_SIZE,
-  WORLD_HEIGHT,
-  WORLD_WIDTH
+  PLAYER_SIZE
 } from "../shared/constants.js";
-import { getRemoteRenderState } from "./player.js";
 import { clamp } from "../shared/utils.js";
+import { getRemoteRenderState } from "./player.js";
 
-export function createRenderer(canvas) {
-  const context = canvas.getContext("2d");
+export function createRenderer(gameCanvas, minimapCanvas) {
+  const context = gameCanvas.getContext("2d");
+  const minimapContext = minimapCanvas.getContext("2d");
   const camera = { x: 0, y: 0 };
 
   function resize() {
-    const width = Math.floor(window.innerWidth);
-    const height = Math.floor(window.innerHeight);
-
-    if (canvas.width !== width || canvas.height !== height) {
-      canvas.width = width;
-      canvas.height = height;
-    }
+    resizeCanvasToElement(gameCanvas);
+    resizeCanvasToElement(minimapCanvas);
   }
 
   function updateCamera(localPlayer) {
@@ -29,8 +23,8 @@ export function createRenderer(canvas) {
       return;
     }
 
-    camera.x = clamp(localPlayer.x - canvas.width / 2, 0, Math.max(0, WORLD_WIDTH - canvas.width));
-    camera.y = clamp(localPlayer.y - canvas.height / 2, 0, Math.max(0, WORLD_HEIGHT - canvas.height));
+    camera.x = localPlayer.x - gameCanvas.width / 2;
+    camera.y = localPlayer.y - gameCanvas.height / 2;
   }
 
   function worldToScreen(x, y) {
@@ -51,53 +45,87 @@ export function createRenderer(canvas) {
     resize();
     updateCamera(gameState.localPlayer);
 
-    const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
-    gradient.addColorStop(0, COLORS.backgroundTop);
-    gradient.addColorStop(1, COLORS.backgroundBottom);
-
-    context.fillStyle = gradient;
-    context.fillRect(0, 0, canvas.width, canvas.height);
-
-    drawArena();
-    drawBullets(gameState, now);
-    drawPlayers(gameState, now);
-    drawHud(gameState, now);
+    drawMainScene(gameState, now);
+    drawMiniMap(gameState);
   }
 
-  function drawArena() {
-    const gridSize = 100;
+  function drawMainScene(gameState, now) {
+    context.clearRect(0, 0, gameCanvas.width, gameCanvas.height);
 
-    context.save();
-    context.translate(-camera.x, -camera.y);
-    context.strokeStyle = COLORS.grid;
+    context.fillStyle = COLORS.battlefield;
+    context.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+    drawTerrain();
+    drawBullets(gameState, now);
+    drawPlayers(gameState, now);
+    drawViewportFrame();
+  }
+
+  function drawTerrain() {
+    const largeGrid = 160;
+    const smallGrid = 40;
+
+    context.fillStyle = COLORS.battlefieldShade;
+    context.globalAlpha = 0.2;
+
+    const shadeOffsetX = normalizeOffset(camera.x, largeGrid * 3);
+    const shadeOffsetY = normalizeOffset(camera.y, largeGrid * 3);
+
+    for (let x = -shadeOffsetX; x < gameCanvas.width + largeGrid * 3; x += largeGrid * 3) {
+      for (let y = -shadeOffsetY; y < gameCanvas.height + largeGrid * 3; y += largeGrid * 3) {
+        context.fillRect(x, y, largeGrid * 1.5, largeGrid * 1.5);
+      }
+    }
+
+    context.globalAlpha = 1;
+    context.strokeStyle = COLORS.battlefieldGrid;
     context.lineWidth = 1;
 
-    for (let x = 0; x <= WORLD_WIDTH; x += gridSize) {
+    const smallOffsetX = normalizeOffset(camera.x, smallGrid);
+    const smallOffsetY = normalizeOffset(camera.y, smallGrid);
+
+    for (let x = -smallOffsetX; x <= gameCanvas.width + smallGrid; x += smallGrid) {
       context.beginPath();
       context.moveTo(x, 0);
-      context.lineTo(x, WORLD_HEIGHT);
+      context.lineTo(x, gameCanvas.height);
       context.stroke();
     }
 
-    for (let y = 0; y <= WORLD_HEIGHT; y += gridSize) {
+    for (let y = -smallOffsetY; y <= gameCanvas.height + smallGrid; y += smallGrid) {
       context.beginPath();
       context.moveTo(0, y);
-      context.lineTo(WORLD_WIDTH, y);
+      context.lineTo(gameCanvas.width, y);
       context.stroke();
     }
 
-    context.strokeStyle = COLORS.arenaBorder;
-    context.lineWidth = 3;
-    context.strokeRect(0, 0, WORLD_WIDTH, WORLD_HEIGHT);
-    context.restore();
+    context.strokeStyle = "rgba(255, 255, 255, 0.08)";
+    context.lineWidth = 2;
+
+    const largeOffsetX = normalizeOffset(camera.x, largeGrid);
+    const largeOffsetY = normalizeOffset(camera.y, largeGrid);
+
+    for (let x = -largeOffsetX; x <= gameCanvas.width + largeGrid; x += largeGrid) {
+      context.beginPath();
+      context.moveTo(x, 0);
+      context.lineTo(x, gameCanvas.height);
+      context.stroke();
+    }
+
+    for (let y = -largeOffsetY; y <= gameCanvas.height + largeGrid; y += largeGrid) {
+      context.beginPath();
+      context.moveTo(0, y);
+      context.lineTo(gameCanvas.width, y);
+      context.stroke();
+    }
   }
 
   function drawBullets(gameState, now) {
+    context.fillStyle = COLORS.bullet;
+
     for (const bullet of gameState.bullets.values()) {
       const elapsed = Math.min((now - bullet.receivedAt) / 1000, 0.1);
       const point = worldToScreen(bullet.x + bullet.vx * elapsed, bullet.y + bullet.vy * elapsed);
 
-      context.fillStyle = COLORS.bullet;
       context.beginPath();
       context.arc(point.x, point.y, 4, 0, Math.PI * 2);
       context.fill();
@@ -109,11 +137,9 @@ export function createRenderer(canvas) {
 
     for (const remotePlayer of gameState.remotePlayers.values()) {
       const renderState = getRemoteRenderState(remotePlayer, renderTime);
-      if (!renderState) {
-        continue;
+      if (renderState) {
+        drawPlayer(renderState, false);
       }
-
-      drawPlayer(renderState, false);
     }
 
     if (gameState.localPlayer) {
@@ -124,98 +150,109 @@ export function createRenderer(canvas) {
   function drawPlayer(player, isLocal) {
     const point = worldToScreen(player.x, player.y);
     const half = PLAYER_SIZE / 2;
-    const size = PLAYER_SIZE;
 
     context.fillStyle = player.alive
       ? (isLocal ? COLORS.localPlayer : COLORS.remotePlayer)
       : COLORS.deadPlayer;
-    context.fillRect(point.x - half, point.y - half, size, size);
+    context.fillRect(point.x - half, point.y - half, PLAYER_SIZE, PLAYER_SIZE);
 
-    drawHealthBar(point.x, point.y - half - 16, player.hp);
+    drawHealthBar(point.x, point.y - half - 18, player.hp);
 
-    context.fillStyle = "#f8fafc";
-    context.font = "14px Trebuchet MS, sans-serif";
+    context.fillStyle = COLORS.playerName;
+    context.font = "bold 13px Tahoma, Verdana, sans-serif";
     context.textAlign = "center";
-    context.fillText(player.nick, point.x, point.y - half - 24);
+    context.fillText(player.nick, point.x, point.y - half - 26);
   }
 
   function drawHealthBar(x, y, hp) {
-    const width = 44;
+    const width = 48;
     const height = 6;
+    const ratio = clamp(hp / PLAYER_MAX_HP, 0, 1);
 
     context.fillStyle = COLORS.hpBarMissing;
     context.fillRect(x - width / 2, y, width, height);
 
     context.fillStyle = COLORS.hpBar;
-    context.fillRect(x - width / 2, y, width * (hp / PLAYER_MAX_HP), height);
+    context.fillRect(x - width / 2, y, width * ratio, height);
   }
 
-  function drawHud(gameState, now) {
-    const panelX = 18;
-    const panelY = 18;
-    const panelWidth = 308;
-    const panelHeight = 156;
-    const shotCooldownLeft = Math.max(0, gameState.lastShotAt + FIRE_COOLDOWN_MS - now);
-    const shotCooldownAlpha = 1 - (shotCooldownLeft / FIRE_COOLDOWN_MS);
-
-    context.fillStyle = COLORS.hudBg;
-    context.fillRect(panelX, panelY, panelWidth, panelHeight);
-
-    context.fillStyle = COLORS.hudPanel;
-    context.fillRect(panelX + 6, panelY + 6, panelWidth - 12, panelHeight - 12);
-
-    context.strokeStyle = COLORS.hudBorder;
+  function drawViewportFrame() {
+    context.strokeStyle = COLORS.viewportFrame;
     context.lineWidth = 2;
-    context.strokeRect(panelX + 1, panelY + 1, panelWidth - 2, panelHeight - 2);
-    context.strokeRect(panelX + 8, panelY + 8, panelWidth - 16, panelHeight - 16);
+    context.strokeRect(1, 1, gameCanvas.width - 2, gameCanvas.height - 2);
+    context.strokeStyle = "rgba(15, 23, 42, 0.5)";
+    context.lineWidth = 4;
+    context.strokeRect(6, 6, gameCanvas.width - 12, gameCanvas.height - 12);
+  }
 
-    context.fillStyle = COLORS.hudAccent;
-    context.font = "bold 12px Tahoma, Verdana, sans-serif";
-    context.textAlign = "left";
-    context.fillText("TACTICAL STATUS", 34, 42);
+  function drawMiniMap(gameState) {
+    resizeCanvasToElement(minimapCanvas);
+    minimapContext.clearRect(0, 0, minimapCanvas.width, minimapCanvas.height);
 
-    const hp = gameState.localPlayer?.hp ?? 0;
-    const playersOnline = gameState.remotePlayers.size + (gameState.localPlayer ? 1 : 0);
+    minimapContext.fillStyle = COLORS.minimapBg;
+    minimapContext.fillRect(0, 0, minimapCanvas.width, minimapCanvas.height);
 
-    context.fillStyle = COLORS.hudMuted;
-    context.font = "11px Tahoma, Verdana, sans-serif";
-    context.fillText(`HP`, 34, 68);
-    context.fillText(`PLAYERS`, 34, 92);
-    context.fillText(`SOCKET`, 34, 116);
-    context.fillText(`WEAPON`, 34, 140);
+    drawMiniMapGrid();
+    minimapContext.strokeStyle = COLORS.minimapFrame;
+    minimapContext.lineWidth = 2;
+    minimapContext.strokeRect(1, 1, minimapCanvas.width - 2, minimapCanvas.height - 2);
 
-    context.fillStyle = COLORS.hudAccent;
-    context.font = "bold 15px Tahoma, Verdana, sans-serif";
-    context.fillText(String(hp).padStart(3, "0"), 110, 68);
-    context.fillText(String(playersOnline).padStart(2, "0"), 110, 92);
-    context.fillText(gameState.connected ? "ONLINE" : "OFFLINE", 110, 116);
-    context.fillText(shotCooldownLeft > 0 ? "COOLDOWN" : "READY", 110, 140);
-
-    const barX = 214;
-    const barY = 124;
-    const barWidth = 84;
-    const barHeight = 12;
-
-    context.fillStyle = COLORS.hudTrack;
-    context.fillRect(barX, barY, barWidth, barHeight);
-    context.strokeStyle = COLORS.hudBorder;
-    context.lineWidth = 1;
-    context.strokeRect(barX + 0.5, barY + 0.5, barWidth - 1, barHeight - 1);
-    context.fillStyle = COLORS.hudFill;
-    context.fillRect(barX + 2, barY + 2, Math.max(0, (barWidth - 4) * shotCooldownAlpha), barHeight - 4);
-
-    if (gameState.localPlayer && !gameState.localPlayer.alive) {
-      const secondsLeft = Math.max(0, Math.ceil((gameState.localPlayer.respawnAt - Date.now()) / 1000));
-      context.fillStyle = COLORS.hudAccent;
-      context.font = "bold 12px Tahoma, Verdana, sans-serif";
-      context.fillText(`RESPAWN IN ${secondsLeft}s`, 214, 72);
+    if (!gameState.localPlayer) {
       return;
     }
 
-    context.fillStyle = COLORS.hudMuted;
-    context.font = "11px Tahoma, Verdana, sans-serif";
-    context.fillText("WASD MOVE", 214, 72);
-    context.fillText("LMB FIRE", 214, 92);
+    const centerX = minimapCanvas.width / 2;
+    const centerY = minimapCanvas.height / 2;
+    const radiusX = minimapCanvas.width / 2 - 12;
+    const radiusY = minimapCanvas.height / 2 - 12;
+    const worldScaleX = radiusX / MINIMAP_RANGE;
+    const worldScaleY = radiusY / MINIMAP_RANGE;
+
+    minimapContext.strokeStyle = COLORS.minimapView;
+    minimapContext.strokeRect(centerX - 24, centerY - 14, 48, 28);
+
+    for (const remotePlayer of gameState.remotePlayers.values()) {
+      const sample = remotePlayer.samples[remotePlayer.samples.length - 1];
+      if (!sample) {
+        continue;
+      }
+
+      const dx = sample.x - gameState.localPlayer.x;
+      const dy = sample.y - gameState.localPlayer.y;
+      if (Math.abs(dx) > MINIMAP_RANGE || Math.abs(dy) > MINIMAP_RANGE) {
+        continue;
+      }
+
+      const x = centerX + dx * worldScaleX;
+      const y = centerY + dy * worldScaleY;
+
+      minimapContext.fillStyle = sample.alive ? COLORS.minimapRemote : COLORS.deadPlayer;
+      minimapContext.fillRect(x - 3, y - 3, 6, 6);
+    }
+
+    minimapContext.fillStyle = COLORS.minimapLocal;
+    minimapContext.fillRect(centerX - 4, centerY - 4, 8, 8);
+  }
+
+  function drawMiniMapGrid() {
+    const grid = 28;
+
+    minimapContext.strokeStyle = COLORS.minimapGrid;
+    minimapContext.lineWidth = 1;
+
+    for (let x = 0; x <= minimapCanvas.width; x += grid) {
+      minimapContext.beginPath();
+      minimapContext.moveTo(x, 0);
+      minimapContext.lineTo(x, minimapCanvas.height);
+      minimapContext.stroke();
+    }
+
+    for (let y = 0; y <= minimapCanvas.height; y += grid) {
+      minimapContext.beginPath();
+      minimapContext.moveTo(0, y);
+      minimapContext.lineTo(minimapCanvas.width, y);
+      minimapContext.stroke();
+    }
   }
 
   return {
@@ -224,4 +261,19 @@ export function createRenderer(canvas) {
     resize,
     screenToWorld
   };
+}
+
+function resizeCanvasToElement(canvas) {
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(1, Math.floor(rect.width));
+  const height = Math.max(1, Math.floor(rect.height));
+
+  if (canvas.width !== width || canvas.height !== height) {
+    canvas.width = width;
+    canvas.height = height;
+  }
+}
+
+function normalizeOffset(value, gridSize) {
+  return ((value % gridSize) + gridSize) % gridSize;
 }

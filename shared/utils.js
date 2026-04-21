@@ -1,9 +1,7 @@
 import {
   MAX_INPUT_DT_MS,
-  PLAYER_SIZE,
   PLAYER_SPEED,
-  WORLD_HEIGHT,
-  WORLD_WIDTH
+  SPAWN_RADIUS
 } from "./constants.js";
 
 export function clamp(value, min, max) {
@@ -41,10 +39,9 @@ export function sanitizeNickname(value) {
 }
 
 export function getRandomSpawnPoint() {
-  const margin = PLAYER_SIZE;
   return {
-    x: randomInRange(margin, WORLD_WIDTH - margin),
-    y: randomInRange(margin, WORLD_HEIGHT - margin)
+    x: randomInRange(-SPAWN_RADIUS, SPAWN_RADIUS),
+    y: randomInRange(-SPAWN_RADIUS, SPAWN_RADIUS)
   };
 }
 
@@ -57,10 +54,9 @@ export function applyInputMovement(entity, input, deltaSeconds) {
   }
 
   const direction = normalizeVector(horizontal, vertical);
-  const half = PLAYER_SIZE / 2;
 
-  entity.x = clamp(entity.x + direction.x * PLAYER_SPEED * deltaSeconds, half, WORLD_WIDTH - half);
-  entity.y = clamp(entity.y + direction.y * PLAYER_SPEED * deltaSeconds, half, WORLD_HEIGHT - half);
+  entity.x += direction.x * PLAYER_SPEED * deltaSeconds;
+  entity.y += direction.y * PLAYER_SPEED * deltaSeconds;
 
   return entity;
 }

@@ -39,6 +39,13 @@ export function handlePlayerInput(state, id, payload) {
 
 export function handlePlayerShoot(state, id, payload, now = Date.now()) {
   const player = state.players.get(id);
+  if (!player) {
+    return null;
+  }
+
+  // Pull the latest queued movement before the shot so bullets start from the
+  // freshest authoritative position instead of an older tick position.
+  processPlayerInputs(player);
   return trySpawnBullet(state, player, payload, now);
 }
 
