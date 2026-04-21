@@ -12,14 +12,14 @@ export const BULLET_RADIUS = 5;
 export const BULLET_SPEED = 920;
 export const BULLET_DAMAGE = 25;
 export const BULLET_LIFETIME_MS = 1400;
-export const FIRE_COOLDOWN_MS = 180;
+export const FIRE_COOLDOWN_MS = 220;
+export const MAX_ACTIVE_BULLETS = 120;
 
 export const SERVER_TICK_MS = 50;
 export const SNAPSHOT_RATE = 1000 / SERVER_TICK_MS;
 export const MAX_INPUT_DT_MS = 50;
 
 export const CLIENT_INTERPOLATION_BACK_TIME_MS = 100;
-export const CLIENT_PREDICTED_BULLET_TTL_MS = 250;
 
 export const COLORS = {
     backgroundTop: "#0f172a",
@@ -29,9 +29,13 @@ export const COLORS = {
     remotePlayer: "#22d3ee",
     deadPlayer: "#64748b",
     bullet: "#f8fafc",
-    predictedBullet: "rgba(251, 191, 36, 0.9)",
-    hudBg: "rgba(15, 23, 42, 0.8)",
-    hudBorder: "rgba(148, 163, 184, 0.28)",
+    hudBg: "rgba(12, 12, 12, 0.9)",
+    hudPanel: "rgba(30, 30, 30, 0.96)",
+    hudBorder: "rgba(200, 200, 200, 0.26)",
+    hudAccent: "#f3f4f6",
+    hudMuted: "#9ca3af",
+    hudTrack: "#252525",
+    hudFill: "#e5e7eb",
     hpBar: "#22c55e",
     hpBarMissing: "#ef4444",
     arenaBorder: "rgba(248, 250, 252, 0.2)"

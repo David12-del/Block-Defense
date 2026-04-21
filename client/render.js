@@ -1,6 +1,7 @@
 import {
   CLIENT_INTERPOLATION_BACK_TIME_MS,
   COLORS,
+  FIRE_COOLDOWN_MS,
   PLAYER_MAX_HP,
   PLAYER_SIZE,
   WORLD_HEIGHT,
@@ -101,15 +102,6 @@ export function createRenderer(canvas) {
       context.arc(point.x, point.y, 4, 0, Math.PI * 2);
       context.fill();
     }
-
-    for (const bullet of gameState.predictedBullets.values()) {
-      const point = worldToScreen(bullet.x, bullet.y);
-
-      context.fillStyle = COLORS.predictedBullet;
-      context.beginPath();
-      context.arc(point.x, point.y, 4, 0, Math.PI * 2);
-      context.fill();
-    }
   }
 
   function drawPlayers(gameState, now) {
@@ -159,30 +151,71 @@ export function createRenderer(canvas) {
   }
 
   function drawHud(gameState, now) {
-    context.fillStyle = COLORS.hudBg;
-    context.strokeStyle = COLORS.hudBorder;
-    context.lineWidth = 1;
-    context.beginPath();
-    context.roundRect(18, 18, 270, 106, 16);
-    context.fill();
-    context.stroke();
+    const panelX = 18;
+    const panelY = 18;
+    const panelWidth = 308;
+    const panelHeight = 156;
+    const shotCooldownLeft = Math.max(0, gameState.lastShotAt + FIRE_COOLDOWN_MS - now);
+    const shotCooldownAlpha = 1 - (shotCooldownLeft / FIRE_COOLDOWN_MS);
 
-    context.fillStyle = "#f8fafc";
-    context.font = "15px Trebuchet MS, sans-serif";
+    context.fillStyle = COLORS.hudBg;
+    context.fillRect(panelX, panelY, panelWidth, panelHeight);
+
+    context.fillStyle = COLORS.hudPanel;
+    context.fillRect(panelX + 6, panelY + 6, panelWidth - 12, panelHeight - 12);
+
+    context.strokeStyle = COLORS.hudBorder;
+    context.lineWidth = 2;
+    context.strokeRect(panelX + 1, panelY + 1, panelWidth - 2, panelHeight - 2);
+    context.strokeRect(panelX + 8, panelY + 8, panelWidth - 16, panelHeight - 16);
+
+    context.fillStyle = COLORS.hudAccent;
+    context.font = "bold 12px Tahoma, Verdana, sans-serif";
     context.textAlign = "left";
+    context.fillText("TACTICAL STATUS", 34, 42);
 
     const hp = gameState.localPlayer?.hp ?? 0;
-    context.fillText(`HP: ${hp}`, 34, 46);
-    context.fillText(`Players: ${gameState.remotePlayers.size + (gameState.localPlayer ? 1 : 0)}`, 34, 70);
-    context.fillText(`Socket: ${gameState.connected ? "online" : "offline"}`, 34, 94);
+    const playersOnline = gameState.remotePlayers.size + (gameState.localPlayer ? 1 : 0);
+
+    context.fillStyle = COLORS.hudMuted;
+    context.font = "11px Tahoma, Verdana, sans-serif";
+    context.fillText(`HP`, 34, 68);
+    context.fillText(`PLAYERS`, 34, 92);
+    context.fillText(`SOCKET`, 34, 116);
+    context.fillText(`WEAPON`, 34, 140);
+
+    context.fillStyle = COLORS.hudAccent;
+    context.font = "bold 15px Tahoma, Verdana, sans-serif";
+    context.fillText(String(hp).padStart(3, "0"), 110, 68);
+    context.fillText(String(playersOnline).padStart(2, "0"), 110, 92);
+    context.fillText(gameState.connected ? "ONLINE" : "OFFLINE", 110, 116);
+    context.fillText(shotCooldownLeft > 0 ? "COOLDOWN" : "READY", 110, 140);
+
+    const barX = 214;
+    const barY = 124;
+    const barWidth = 84;
+    const barHeight = 12;
+
+    context.fillStyle = COLORS.hudTrack;
+    context.fillRect(barX, barY, barWidth, barHeight);
+    context.strokeStyle = COLORS.hudBorder;
+    context.lineWidth = 1;
+    context.strokeRect(barX + 0.5, barY + 0.5, barWidth - 1, barHeight - 1);
+    context.fillStyle = COLORS.hudFill;
+    context.fillRect(barX + 2, barY + 2, Math.max(0, (barWidth - 4) * shotCooldownAlpha), barHeight - 4);
 
     if (gameState.localPlayer && !gameState.localPlayer.alive) {
       const secondsLeft = Math.max(0, Math.ceil((gameState.localPlayer.respawnAt - Date.now()) / 1000));
-      context.fillText(`Respawn in: ${secondsLeft}s`, 34, 118);
+      context.fillStyle = COLORS.hudAccent;
+      context.font = "bold 12px Tahoma, Verdana, sans-serif";
+      context.fillText(`RESPAWN IN ${secondsLeft}s`, 214, 72);
       return;
     }
 
-    context.fillText("WASD to move, left click to shoot", 34, 118);
+    context.fillStyle = COLORS.hudMuted;
+    context.font = "11px Tahoma, Verdana, sans-serif";
+    context.fillText("WASD MOVE", 214, 72);
+    context.fillText("LMB FIRE", 214, 92);
   }
 
   return {

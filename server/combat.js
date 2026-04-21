@@ -4,6 +4,7 @@ import {
   BULLET_RADIUS,
   BULLET_SPEED,
   FIRE_COOLDOWN_MS,
+  MAX_ACTIVE_BULLETS,
   PLAYER_SIZE,
   WORLD_HEIGHT,
   WORLD_WIDTH
@@ -17,7 +18,12 @@ import {
 import { killPlayer } from "./players.js";
 
 export function trySpawnBullet(state, player, payload, now) {
-  if (!player || !player.alive || now - player.lastShotAt < FIRE_COOLDOWN_MS) {
+  if (
+    !player ||
+    !player.alive ||
+    now - player.lastShotAt < FIRE_COOLDOWN_MS ||
+    state.bullets.size >= MAX_ACTIVE_BULLETS
+  ) {
     return null;
   }
 
@@ -37,7 +43,6 @@ export function trySpawnBullet(state, player, payload, now) {
   const bullet = {
     id: state.nextBulletId++,
     ownerId: player.id,
-    clientShotId: Number.isInteger(payload?.clientShotId) ? payload.clientShotId : null,
     x: player.x,
     y: player.y,
     vx: direction.x * BULLET_SPEED,
@@ -110,8 +115,6 @@ export function updateBullets(state, now, deltaSeconds) {
 export function serializeBullet(bullet) {
   return {
     id: bullet.id,
-    ownerId: bullet.ownerId,
-    clientShotId: bullet.clientShotId,
     x: round2(bullet.x),
     y: round2(bullet.y),
     vx: round2(bullet.vx),
