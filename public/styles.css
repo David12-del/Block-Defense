@@ -1,0 +1,35 @@
+html,
+body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: radial-gradient(circle at top, #1e293b 0%, #020617 75%);
+  font-family: "Trebuchet MS", sans-serif;
+}
+
+body {
+  position: relative;
+}
+
+#game {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+  cursor: crosshair;
+}
+
+.corner-mark {
+  position: fixed;
+  right: 18px;
+  bottom: 18px;
+  padding: 10px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 999px;
+  color: rgba(248, 250, 252, 0.78);
+  background: rgba(15, 23, 42, 0.5);
+  backdrop-filter: blur(10px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-size: 12px;
+}
