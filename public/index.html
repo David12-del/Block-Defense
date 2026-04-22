@@ -27,19 +27,8 @@
             <span>Socket</span>
             <span id="hud-socket">OFFLINE</span>
           </div>
-        </section>
-
-        <section class="card">
-          <div class="card-label">Combat</div>
           <div class="meta-row">
-            <span>Weapon</span>
-            <span id="hud-weapon">READY</span>
-          </div>
-          <div class="meter meter-thin">
-            <div id="hud-weapon-fill" class="meter-fill"></div>
-          </div>
-          <div class="meta-row">
-            <span>Status</span>
+            <span>State</span>
             <span id="hud-respawn">Alive</span>
           </div>
           <div class="meta-row">
@@ -53,10 +42,13 @@
         <div class="game-shell">
           <div class="game-toolbar">
             <div>ARENA WINDOW</div>
-            <div>NUM LOCK // DEV PANEL</div>
+            <div><span id="hud-weapon">READY</span> // NUM LOCK DEBUG</div>
           </div>
           <div class="game-frame">
             <canvas id="game"></canvas>
+          </div>
+          <div class="weapon-strip">
+            <div id="hud-weapon-fill" class="weapon-strip-fill"></div>
           </div>
           <div class="game-footer">
             <div class="footer-block">
@@ -88,13 +80,6 @@
         <section class="card minimap-card">
           <div class="card-label">Mini Map</div>
           <canvas id="minimap"></canvas>
-        </section>
-
-        <section class="card tips-card">
-          <div class="card-label">Controls</div>
-          <div class="tip-line">WASD // move</div>
-          <div class="tip-line">LMB // fire</div>
-          <div class="tip-line">Num Lock // debug</div>
         </section>
       </aside>
     </div>

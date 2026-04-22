@@ -195,7 +195,16 @@ function applySnapshot(snapshot) {
   const serverBullets = new Map();
   for (const bullet of snapshot.bullets) {
     if (bullet.ownerId === gameState.localPlayerId && Number.isInteger(bullet.clientShotId)) {
-      gameState.predictedBullets.delete(bullet.clientShotId);
+      const predictedBullet = gameState.predictedBullets.get(bullet.clientShotId);
+      if (predictedBullet) {
+        predictedBullet.x = bullet.x;
+        predictedBullet.y = bullet.y;
+        predictedBullet.vx = bullet.vx;
+        predictedBullet.vy = bullet.vy;
+        predictedBullet.confirmed = true;
+        predictedBullet.lastServerSeenAt = receivedAt;
+        continue;
+      }
     }
 
     serverBullets.set(bullet.id, {
@@ -264,7 +273,9 @@ function handleShoot({ screenX, screenY }) {
     y: gameState.localPlayer.y + direction.y * spawnDistance,
     vx: direction.x * BULLET_SPEED,
     vy: direction.y * BULLET_SPEED,
-    expiresAt: now + CLIENT_PREDICTED_BULLET_TTL_MS
+    expiresAt: now + CLIENT_PREDICTED_BULLET_TTL_MS,
+    confirmed: false,
+    lastServerSeenAt: 0
   });
 
   network.sendShoot({
@@ -309,7 +320,10 @@ function updatePredictedBullets(deltaSeconds, now) {
       }
     }
 
-    if (blocked || now >= bullet.expiresAt) {
+    const shouldExpireUnconfirmed = !bullet.confirmed && now >= bullet.expiresAt;
+    const shouldExpireConfirmed = bullet.confirmed && now - bullet.lastServerSeenAt > 120;
+
+    if (blocked || shouldExpireUnconfirmed || shouldExpireConfirmed) {
       gameState.predictedBullets.delete(shotId);
     }
   }

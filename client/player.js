@@ -89,7 +89,26 @@ export function getRemoteRenderState(remotePlayer, renderTime) {
     };
   }
 
-  return samples[samples.length - 1];
+  const latest = samples[samples.length - 1];
+  const previous = samples[samples.length - 2];
+  if (!previous) {
+    return latest;
+  }
+
+  const deltaTime = Math.max(1, latest.time - previous.time);
+  const extrapolationMs = Math.min(renderTime - latest.time, 90);
+  if (extrapolationMs <= 0) {
+    return latest;
+  }
+
+  const velocityX = (latest.x - previous.x) / deltaTime;
+  const velocityY = (latest.y - previous.y) / deltaTime;
+
+  return {
+    ...latest,
+    x: latest.x + velocityX * extrapolationMs,
+    y: latest.y + velocityY * extrapolationMs
+  };
 }
 
 function createSample(snapshot, receivedAt) {

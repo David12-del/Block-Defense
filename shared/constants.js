@@ -15,9 +15,9 @@ export const BULLET_LIFETIME_MS = 1400;
 export const FIRE_COOLDOWN_MS = 220;
 export const MAX_ACTIVE_BULLETS = 120;
 
-export const SERVER_TICK_MS = 50;
+export const SERVER_TICK_MS = 33;
 export const MAX_INPUT_DT_MS = 50;
-export const CLIENT_INTERPOLATION_BACK_TIME_MS = 100;
+export const CLIENT_INTERPOLATION_BACK_TIME_MS = 70;
 export const CLIENT_PING_INTERVAL_MS = 1000;
 export const CLIENT_PREDICTED_BULLET_TTL_MS = 220;
 
